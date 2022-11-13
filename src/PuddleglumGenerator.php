@@ -26,7 +26,7 @@ class PuddleglumGenerator
 		Controller::class => ApiRouteGenerator::class,
 	];
 
-	public function __construct(public string $output)
+	public function __construct(public string $output, public bool $autoloadDev = false)
 	{
 	}
 
@@ -106,36 +106,40 @@ class PuddleglumGenerator
 	{
 		$composer = json_decode(file_get_contents(realpath('composer.json')));
 
-		return collect($composer->autoload->{'psr-4'})->flatMap(function (
-			string $path,
-			string $namespace,
-		) {
-			return collect(
-				(new Finder())
-					->in($path)
-					->name('*.php')
-					->files(),
-			)
-				->map(function (SplFileInfo $file) use ($path, $namespace) {
-					return $namespace .
-						str_replace(
-							['/', '.php'],
-							['\\', ''],
-							Str::after($file->getRealPath(), realpath($path) . DIRECTORY_SEPARATOR),
-						);
-				})
-				->filter(function (string $className) {
-					try {
-						new ReflectionClass($className);
+		return collect($composer->autoload->{'psr-4'})
+			->when($this->autoloadDev, function (Collection $paths) use ($composer) {
+				return $paths->merge(collect($composer->{'autoload-dev'}?->{'psr-4'}));
+			})
+			->flatMap(function (string $path, string $namespace) {
+				return collect(
+					(new Finder())
+						->in($path)
+						->name('*.php')
+						->files(),
+				)
+					->map(function (SplFileInfo $file) use ($path, $namespace) {
+						return $namespace .
+							str_replace(
+								['/', '.php'],
+								['\\', ''],
+								Str::after(
+									$file->getRealPath(),
+									realpath($path) . DIRECTORY_SEPARATOR,
+								),
+							);
+					})
+					->filter(function (string $className) {
+						try {
+							new ReflectionClass($className);
 
-						return true;
-					} catch (ReflectionException) {
-						return false;
-					}
-				})
-				->map(fn(string $className) => new ReflectionClass($className))
-				->reject(fn(ReflectionClass $reflection) => $reflection->isAbstract())
-				->values();
-		});
+							return true;
+						} catch (ReflectionException) {
+							return false;
+						}
+					})
+					->map(fn(string $className) => new ReflectionClass($className))
+					->reject(fn(ReflectionClass $reflection) => $reflection->isAbstract())
+					->values();
+			});
 	}
 }
