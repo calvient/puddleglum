@@ -7,19 +7,21 @@
 The package lets you generate TypeScript interfaces from your Laravel models.
 
 ## Introduction
+
 Say you have a model which has several properties (database columns) and multiple relations.
+
 ```php
 class Product extends Model
 {
-    public function category(): BelongsTo
-    {
-        return $this->belongsTo(Category::class);
-    }
+	public function category(): BelongsTo
+	{
+		return $this->belongsTo(Category::class);
+	}
 
-    public function features(): HasMany
-    {
-        return $this->hasMany(Feature::class);
-    }
+	public function features(): HasMany
+	{
+		return $this->hasMany(Feature::class);
+	}
 }
 ```
 
@@ -42,10 +44,11 @@ declare namespace App.Models {
 ```
 
 **Laravel TypeScript** supports:
-- [x] Database columns
-- [x] Model relations
-- [x] Model accessors
-- [ ] Casted attributes
+
+-   [x] Database columns
+-   [x] Model relations
+-   [x] Model accessors
+-   [ ] Casted attributes
 
 ## Installation
 
@@ -57,34 +60,36 @@ composer require based/laravel-typescript
 ```
 
 You can publish the config file with:
+
 ```bash
-php artisan vendor:publish --provider="Based\TypeScript\TypeScriptServiceProvider" --tag="typescript-config"
+php artisan vendor:publish --provider="Calvient\Puddleglum\TypeScriptServiceProvider" --tag="typescript-config"
 ```
 
 This is the contents of the published config file:
 
 ```php
 return [
-    'generators' => [
-        Model::class => ModelGenerator::class,
-    ],
+	'generators' => [
+		Model::class => ModelGenerator::class,
+	],
 
-    'output' => resource_path('js/models.d.ts'),
+	'output' => resource_path('js/models.d.ts'),
 
-    // load namespaces from composer's `dev-autoload`
-    'autoloadDev' => false,
+	// load namespaces from composer's `dev-autoload`
+	'autoloadDev' => false,
 ];
-
 ```
 
 ## Usage
 
 Generate TypeScript interfaces.
+
 ```bash
 php artisan typescript:generate
 ```
 
 Example usage with Vue 3:
+
 ```typescript
 import { defineComponent, PropType } from "vue";
 
@@ -106,8 +111,8 @@ composer test
 
 ## Credits
 
-- [Boris Lepikhin](https://github.com/lepikhinb)
-- [All Contributors](../../contributors)
+-   [Boris Lepikhin](https://github.com/lepikhinb)
+-   [All Contributors](../../contributors)
 
 ## License
 

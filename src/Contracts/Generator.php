@@ -1,12 +1,12 @@
 <?php
 
-namespace Based\TypeScript\Contracts;
+namespace Calvient\Puddleglum\Contracts;
 
 use ReflectionClass;
 
 interface Generator
 {
-    public function generate(ReflectionClass $reflection): ?string;
+	public function generate(ReflectionClass $reflection): ?string;
 
-    public function getDefinition(): ?string;
+	public function getDefinition(): ?string;
 }

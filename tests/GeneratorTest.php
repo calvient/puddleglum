@@ -1,32 +1,30 @@
 <?php
 
-namespace Based\TypeScript\Tests;
+namespace Calvient\Puddleglum\Tests;
 
-use Based\TypeScript\TypeScriptGenerator;
+use Calvient\Puddleglum\PuddleglumGenerator;
 
 class GeneratorTest extends TestCase
 {
-    /** @test */
-    public function it_works()
-    {
-        $output = @tempnam('/tmp', 'models.d.ts');
+	/** @test */
+	public function it_works()
+	{
+		$output = @tempnam('/tmp', 'models.d.ts');
 
-        $generator = new TypeScriptGenerator(
-            generators: config('typescript.generators'),
-            output: $output,
-            autoloadDev: true
-        );
+		$generator = new PuddleglumGenerator(output: $output);
 
-        $generator->execute();
+		$generator->execute();
 
-        $this->assertFileExists($output);
+		$this->assertFileExists($output);
 
-        $result = file_get_contents($output);
+		$result = file_get_contents($output);
 
-        $this->assertEquals(3, substr_count($result, 'interface'));
-        $this->assertTrue(str_contains($result, 'sub_category?: Based.TypeScript.Tests.Models.Category | null;'));
-        $this->assertTrue(str_contains($result, 'products_count?: number | null;'));
+		$this->assertEquals(3, substr_count($result, 'interface'));
+		$this->assertTrue(
+			str_contains($result, 'sub_category?: Based.TypeScript.Tests.Models.Category | null;'),
+		);
+		$this->assertTrue(str_contains($result, 'products_count?: number | null;'));
 
-        unlink($output);
-    }
+		unlink($output);
+	}
 }
