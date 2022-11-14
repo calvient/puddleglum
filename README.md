@@ -24,7 +24,7 @@ Puddleglum is a Laravel package that solves these problems by automatically gene
 You can install the package via composer:
 
 ```bash
-composer require calvient/puddleglum
+composer require --dev calvient/puddleglum
 ```
 
 You can publish the config file with:
@@ -37,7 +37,7 @@ This is the contents of the published config file:
 
 ```php
 return [
-    'output' => resource_path('js/models.d.ts'),
+   'output' => resource_path('ts/puddleglum.ts'),
 ];
 ```
 
