@@ -1,8 +1,8 @@
 # Puddleglum
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/calvient/puddleglum.svg?style=flat-square)](https://packagist.org/packages/based/laravel-typescript)
-[![GitHub Tests Action Status](https://img.shields.io/github/workflow/status/calvient/puddle-glum/run-tests?label=tests)](https://github.com/lepikhinb/laravel-typescript/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![Total Downloads](https://img.shields.io/packagist/dt/calvient/puddleglum.svg?style=flat-square)](https://packagist.org/packages/based/laravel-typescript)
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/calvient/puddleglum.svg?style=flat-square)](https://packagist.org/packages/calvient/puddleglum)
+[![GitHub Tests Action Status](https://img.shields.io/github/workflow/status/calvient/puddle-glum/run-tests?label=tests)](https://github.com/calvient/puddleglum/actions?query=workflow%3Arun-tests+branch%3Amain)
+[![Total Downloads](https://img.shields.io/packagist/dt/calvient/puddleglum.svg?style=flat-square)](https://packagist.org/packages/calvient/puddleglum)
 
 Puddleglum allows you to automatically generate TypeScript interfaces from your Laravel models and requests as well as
 a typesafe Axios implementation for your API routes.
