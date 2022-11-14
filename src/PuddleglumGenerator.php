@@ -75,7 +75,9 @@ class PuddleglumGenerator
 		} elseif ($classGeneratedCode) {
 			$tsNamespace = Str::of($namespace)
 				->after('App\\Http\\')
-				->replace('\\', '.');
+				->replace('\\', '.')
+				->replace('Controllers.', 'Puddleglum.');
+
 			return <<<TS
 			export namespace $tsNamespace {
 			    $classGeneratedCode
