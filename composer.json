@@ -1,9 +1,10 @@
 {
 	"name": "calvient/puddleglum",
-	"description": "Transform Laravel models, routes, and controllers into a rich Typescript API",
+	"description": "Transform Laravel models, routes, and controllers into a Typescript API client",
 	"keywords": [
 		"laravel",
-		"typescript"
+		"typescript",
+        "puddleglum"
 	],
 	"homepage": "https://github.com/calvient/puddleglum",
 	"license": "MIT",
@@ -11,7 +12,7 @@
 		{
 			"name": "Jonathan Minson",
 			"email": "jonathan@calvient.com",
-			"role": "Lead Novelist"
+			"role": "Lead Marshwiggle"
 		}
 	],
 	"require": {
