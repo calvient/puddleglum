@@ -49,7 +49,7 @@
 	"extra": {
 		"laravel": {
 			"providers": [
-                "PuddleglumServiceProvider"
+                "Calvient\\Puddleglum\\PuddleglumServiceProvider"
 			]
 		}
 	},
