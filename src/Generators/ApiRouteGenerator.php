@@ -143,7 +143,7 @@ class ApiRouteGenerator extends AbstractGenerator
 
 	protected function makeAxiosCall($method, $path, $request, $glumRequest, $response): string
 	{
-		$generic = $response ? '<{' . $this->transformArrayToTypescriptType($response) . '}>' : '';
+		$generic = $response ? $this->transformResponseToTypescriptType($response) : '';
 
 		$call = "axios.$method$generic(`$path`";
 
@@ -156,11 +156,21 @@ class ApiRouteGenerator extends AbstractGenerator
 		return $call;
 	}
 
-	protected function transformArrayToTypescriptType($array)
+	protected function transformResponseToTypescriptType(array|string $reponse)
 	{
-		return collect($array)
-			->map(fn($value, $key) => $key . ': ' . $this->transformPhpTypeToTypescript($value))
-			->join(',');
+		if (is_array($reponse)) {
+			return '<{' .
+				collect($reponse)
+					->map(
+						fn($value, $key) => $key .
+							': ' .
+							$this->transformPhpTypeToTypescript($value),
+					)
+					->join(',') .
+				'}>';
+		} else {
+			return '<' . $this->transformPhpTypeToTypescript($reponse) . '>';
+		}
 	}
 
 	protected function transformPhpTypeToTypescript($value)
