@@ -17,12 +17,9 @@ use Symfony\Component\Finder\Finder;
 
 class PuddleglumGenerator
 {
-	protected array $typeGenerators = [
+	protected array $generators = [
 		Model::class => ModelGenerator::class,
 		FormRequest::class => RequestGenerator::class,
-	];
-
-	protected array $classGenerators = [
 		Controller::class => ApiRouteGenerator::class,
 	];
 
@@ -60,37 +57,30 @@ class PuddleglumGenerator
 
 	protected function makeNamespace(string $namespace, Collection $reflections): string
 	{
-		$typeGeneratedCode = $reflections
+		$generatedCode = $reflections
 			->map(fn(ReflectionClass $reflection) => $this->runGenerator($reflection))
 			->whereNotNull()
 			->join(PHP_EOL);
 
-		$classGeneratedCode = $reflections
-			->map(fn(ReflectionClass $reflection) => $this->runGenerator($reflection, 'class'))
-			->whereNotNull()
-			->join(PHP_EOL);
+		$tsNamespace = Str::of($namespace)
+			->after('App\\')
+			->replace('Http\\', '')
+			->replace('\\', '.');
 
-		if ($typeGeneratedCode) {
-			return $typeGeneratedCode;
-		} elseif ($classGeneratedCode) {
-			$tsNamespace = Str::of($namespace)
-				->after('App\\Http\\')
-				->replace('\\', '.')
-				->replace('Controllers.', 'Puddleglum.');
-
-			return <<<TS
-			export namespace $tsNamespace {
-			    $classGeneratedCode
-			}
-			TS;
+		if (!$generatedCode) {
+			return '';
 		}
 
-		return '';
+		return <<<TS
+		export namespace Puddleglum.$tsNamespace {
+		    $generatedCode
+		}
+		TS;
 	}
 
-	protected function runGenerator(ReflectionClass $reflection, string $type = 'type'): ?string
+	protected function runGenerator(ReflectionClass $reflection): ?string
 	{
-		$generator = collect($type === 'type' ? $this->typeGenerators : $this->classGenerators)
+		$generator = collect($this->generators)
 			->filter(
 				fn(string $generator, string $baseClass) => $reflection->isSubclassOf($baseClass),
 			)

@@ -202,6 +202,7 @@ class ModelGenerator extends AbstractGenerator
 	{
 		$relationReturn = $method->invoke($this->model);
 		$related = str_replace('\\', '.', get_class($relationReturn->getRelated()));
+		$related = str_replace('App.', 'Puddleglum.', $related);
 
 		if ($this->isManyRelation($method)) {
 			return TypeScriptType::array($related);

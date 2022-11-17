@@ -3,7 +3,7 @@
 namespace Calvient\Puddleglum\Tests\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\UserLogin;
+use App\Http\Requests\Auth\UserLogin;
 use Calvient\Puddleglum\Attributes\GlumResponse;
 
 class TestLoginController extends Controller

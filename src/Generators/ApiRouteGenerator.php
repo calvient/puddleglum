@@ -76,7 +76,8 @@ class ApiRouteGenerator extends AbstractGenerator
 					'pathParameters' => $pathParameters,
 					'request' => $request
 						? Str::of($request->getType()->getName())
-							->afterLast('\\')
+							->replace('App\\Http\\', 'Puddleglum\\')
+							->replace('\\', '.')
 							->toString()
 						: null,
 					'glumRequest' => $glumRequest?->getArguments()[0] ?? null,
@@ -158,7 +159,27 @@ class ApiRouteGenerator extends AbstractGenerator
 	protected function transformArrayToTypescriptType($array)
 	{
 		return collect($array)
-			->map(fn($value, $key) => $key . ': ' . $value)
+			->map(fn($value, $key) => $key . ': ' . $this->transformPhpTypeToTypescript($value))
 			->join(',');
+	}
+
+	protected function transformPhpTypeToTypescript($value)
+	{
+		$typescriptPrimitives = [
+			'string',
+			'number',
+			'boolean',
+			'any',
+			'unknown',
+			'void',
+			'null',
+			'undefined',
+		];
+
+		if (in_array($value, $typescriptPrimitives)) {
+			return $value;
+		}
+
+		return config('puddleglum.models_namespace', 'Puddleglum.Models') . '.' . $value;
 	}
 }
