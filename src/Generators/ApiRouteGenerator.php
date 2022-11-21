@@ -135,7 +135,8 @@ class ApiRouteGenerator extends AbstractGenerator
 			$signature .= 'request: ' . $request;
 		} elseif ($glumRequest) {
 			$signature .= $signature ? ', ' : '';
-			$signature .= 'request: {' . $this->transformArrayToTypescriptType($glumRequest) . '}';
+			$signature .=
+				'request: {' . $this->transformResponseToTypescriptType($glumRequest) . '}';
 		}
 
 		return $signature;
@@ -144,7 +145,7 @@ class ApiRouteGenerator extends AbstractGenerator
 	protected function makeAxiosCall($method, $path, $request, $glumRequest, $response): string
 	{
 		$generic = $response ? $this->transformResponseToTypescriptType($response) : '';
-
+		$path = Str::of($path)->startsWith('/') ? $path : "/$path";
 		$call = "axios.$method$generic(`$path`";
 
 		if ($request || $glumRequest) {
