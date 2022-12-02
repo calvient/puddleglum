@@ -158,7 +158,7 @@ class ApiRouteGenerator extends AbstractGenerator
 		$call = "axios.$method$generic(`$path`";
 
 		if ($request || $glumRequest) {
-			$call .= $method === 'get' ? '?${transformToQueryString(request)}' : ', request';
+			$call .= $method === 'get' ? ' + `?${transformToQueryString(request)}`' : ', request';
 		}
 
 		$call .= ')';
