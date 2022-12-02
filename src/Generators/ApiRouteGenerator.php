@@ -29,11 +29,19 @@ class ApiRouteGenerator extends AbstractGenerator
 	public function getDefinition(): ?string
 	{
 		$apiRoutes = collect(\App::make('router')->getRoutes())
-			->filter(fn($route) => collect($route->action['middleware'])->contains('api'))
 			->filter(
-				fn($route) => Str::of($route->action['controller'])->contains(
-					$this->reflection->getName(),
-				),
+				fn($route) => collect(
+					array_key_exists('middleware', $route->action)
+						? $route->action['middleware']
+						: [],
+				)->contains('api'),
+			)
+			->filter(
+				fn($route) => Str::of(
+					array_key_exists('controller', $route->action)
+						? $route->action['controller']
+						: '',
+				)->contains($this->reflection->getName()),
 			)
 			->map(function ($route) {
 				$pathParameters = collect(explode('{', Str::of($route->uri)))
