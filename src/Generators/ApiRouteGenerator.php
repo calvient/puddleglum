@@ -160,7 +160,7 @@ class ApiRouteGenerator extends AbstractGenerator
 		if ($request || $glumRequest) {
 			$call .= $method === 'get' ? '?${transformToQueryString(request)}`' : '`, request';
 		} else {
-			$call = '`';
+			$call .= '`';
 		}
 
 		$call .= ')';
