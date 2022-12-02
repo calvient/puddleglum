@@ -155,10 +155,12 @@ class ApiRouteGenerator extends AbstractGenerator
 	{
 		$generic = $response ? $this->transformResponseToTypescriptType($response) : '';
 		$path = Str::of($path)->startsWith('/') ? $path : "/$path";
-		$call = "axios.$method$generic(`$path`";
+		$call = "axios.$method$generic(`$path";
 
 		if ($request || $glumRequest) {
-			$call .= $method === 'get' ? ' + `?${transformToQueryString(request)}`' : ', request';
+			$call .= $method === 'get' ? '?${transformToQueryString(request)}`' : '`, request';
+		} else {
+			$call = '`';
 		}
 
 		$call .= ')';

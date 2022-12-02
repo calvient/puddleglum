@@ -38,9 +38,13 @@ class RequestGenerator extends AbstractGenerator
 		}
 
 		$rules = $rules
-			->flatMap(
-				fn(array|string $rules, string $property) => $this->parseRules($property, $rules),
-			)
+			->flatMap(function (array|string $rules, string $property) {
+				// Removing the *. from the $property, because it won't parse correctly
+				$property = \Str::of($property)->startsWith('*.')
+					? \Str::of($property)->substr(2)
+					: $property;
+				return $this->parseRules($property, $rules);
+			})
 			->filter();
 
 		if ($rules->isEmpty()) {
@@ -162,8 +166,6 @@ class RequestGenerator extends AbstractGenerator
 	 */
 	private function parseRuleString(string $property, string $rule): Collection
 	{
-		// Removing the *. from the rule, because it won't parse correctly
-		$rule = \Str::of($rule)->startsWith('*.') ? \Str::of($rule)->substr(2) : $rule;
 		return collect(explode(':', $rule, 2))->mapWithKeys(
 			fn(string $args, int|string $key) => is_int($key)
 				? [$this->parseRuleName($property, $args) => null]
