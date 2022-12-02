@@ -162,6 +162,8 @@ class RequestGenerator extends AbstractGenerator
 	 */
 	private function parseRuleString(string $property, string $rule): Collection
 	{
+		// Removing the *. from the rule, because it won't parse correctly
+		$rule = \Str::of($rule)->startsWith('*.') ? \Str::of($rule)->substr(2) : $rule;
 		return collect(explode(':', $rule, 2))->mapWithKeys(
 			fn(string $args, int|string $key) => is_int($key)
 				? [$this->parseRuleName($property, $args) => null]
