@@ -47,6 +47,12 @@ class PuddleglumGenerator
 				*/
 				// eslint-disable-next-line max-classes-per-file
 				import axios from 'axios';
+
+				function transformToQueryString(params: Record<string, any>): string {
+				    return Object.keys(params)
+				        .map((key) => `\${encodeURIComponent(key)}=\${encodeURIComponent(params[key], )}`)
+				        .join('&');
+				}
 				TS
 				,
 			)

@@ -49,8 +49,8 @@ class ApiRouteGenerator extends AbstractGenerator
 					->map(
 						fn($part) => [
 							'name' => Str::of($part)
+								->before('}')
 								->replace(['}', '/', '?'], '')
-								->camel()
 								->toString(),
 							'required' => Str::contains($part, '?') ? false : true,
 						],
@@ -84,7 +84,8 @@ class ApiRouteGenerator extends AbstractGenerator
 					'pathParameters' => $pathParameters,
 					'request' => $request
 						? Str::of($request->getType()->getName())
-							->replace('App\\Http\\', 'Puddleglum\\')
+							->replace('App\\', 'Puddleglum\\')
+							->replace('Http\\', '')
 							->replace('\\', '.')
 							->toString()
 						: null,
@@ -134,7 +135,7 @@ class ApiRouteGenerator extends AbstractGenerator
 
 		if ($pathParameters) {
 			$signature .= collect($pathParameters)
-				->map(fn($parameter) => $parameter['name'] . ': string')
+				->map(fn($parameter) => $parameter['name'] . ': string|number')
 				->join(', ');
 		}
 
@@ -157,7 +158,7 @@ class ApiRouteGenerator extends AbstractGenerator
 		$call = "axios.$method$generic(`$path`";
 
 		if ($request || $glumRequest) {
-			$call .= ', request';
+			$call .= $method === 'get' ? '?${transformToQueryString(request)}' : ', request';
 		}
 
 		$call .= ')';
