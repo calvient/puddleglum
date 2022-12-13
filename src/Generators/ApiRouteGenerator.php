@@ -148,6 +148,10 @@ class ApiRouteGenerator extends AbstractGenerator
 				'request: {' . $this->transformResponseToTypescriptType($glumRequest) . '}';
 		}
 
+		// Add precognitive support
+		$signature .= $signature ? ', ' : '';
+		$signature .= 'validationOnly: boolean = false, fieldToValidate: string = ""';
+
 		return $signature;
 	}
 
@@ -162,6 +166,10 @@ class ApiRouteGenerator extends AbstractGenerator
 		} else {
 			$call .= '`';
 		}
+
+		// Add precognitive support
+		$call .=
+			', { headers: { "Precognition": validationOnly, "Precognition-Validate-Only": fieldToValidate } }';
 
 		$call .= ')';
 
