@@ -115,7 +115,7 @@ public function register(Request $request) {
 
 ### Defining Responses
 
-Defining a response is a bit tricker, because PHP lacks support for generics. However, Puddleglum can still generate
+Defining a response is a bit trickier, because PHP lacks support for generics. However, Puddleglum can still generate
 TypeScript interfaces for your responses.
 
 We accomplish this by using a PHP attribute.
