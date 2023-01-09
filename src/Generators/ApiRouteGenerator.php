@@ -144,8 +144,7 @@ class ApiRouteGenerator extends AbstractGenerator
 			$signature .= 'request: ' . $request;
 		} elseif ($glumRequest) {
 			$signature .= $signature ? ', ' : '';
-			$signature .=
-				'request: {' . $this->transformResponseToTypescriptType($glumRequest) . '}';
+			$signature .= 'request: ' . $this->transformResponseToTypescriptType($glumRequest);
 		}
 
 		// Add precognitive support
@@ -157,7 +156,7 @@ class ApiRouteGenerator extends AbstractGenerator
 
 	protected function makeAxiosCall($method, $path, $request, $glumRequest, $response): string
 	{
-		$generic = $response ? $this->transformResponseToTypescriptType($response) : '';
+		$generic = $response ? $this->transformResponseToTypescriptType($response, true) : '';
 		$path = Str::of($path)->startsWith('/') ? $path : "/$path";
 		$call = "axios.$method$generic(`$path";
 
@@ -169,27 +168,32 @@ class ApiRouteGenerator extends AbstractGenerator
 
 		// Add precognitive support
 		$call .=
-			', { headers: { "Precognition": validationOnly, "Precognition-Validate-Only": fieldToValidate } }';
+			', { headers: { "Precognition": validationOnly, ...fieldToValidate ? {"Precognition-Validate-Only": fieldToValidate} : {} } }';
 
 		$call .= ')';
 
 		return $call;
 	}
 
-	protected function transformResponseToTypescriptType(array|string $reponse)
-	{
-		if (is_array($reponse)) {
-			return '<{' .
-				collect($reponse)
+	protected function transformResponseToTypescriptType(
+		array|string $response,
+		bool $asGeneric = false,
+	) {
+		$prefix = $asGeneric ? '<{' : '{';
+		$suffix = $asGeneric ? '}>' : '}';
+
+		if (is_array($response)) {
+			return $prefix .
+				collect($response)
 					->map(
 						fn($value, $key) => $key .
 							': ' .
 							$this->transformPhpTypeToTypescript($value),
 					)
 					->join(',') .
-				'}>';
+				$suffix;
 		} else {
-			return '<' . $this->transformPhpTypeToTypescript($reponse) . '>';
+			return $prefix . $this->transformPhpTypeToTypescript($response) . $suffix;
 		}
 	}
 
