@@ -179,11 +179,12 @@ class ApiRouteGenerator extends AbstractGenerator
 		array|string $response,
 		bool $asGeneric = false,
 	) {
-		$prefix = $asGeneric ? '<{' : '{';
-		$suffix = $asGeneric ? '}>' : '}';
+		$prefix = $asGeneric ? '<' : '';
+		$suffix = $asGeneric ? '>' : '';
 
 		if (is_array($response)) {
 			return $prefix .
+				'{' .
 				collect($response)
 					->map(
 						fn($value, $key) => $key .
@@ -191,6 +192,7 @@ class ApiRouteGenerator extends AbstractGenerator
 							$this->transformPhpTypeToTypescript($value),
 					)
 					->join(',') .
+				'}' .
 				$suffix;
 		} else {
 			return $prefix . $this->transformPhpTypeToTypescript($response) . $suffix;
