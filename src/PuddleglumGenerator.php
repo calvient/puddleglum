@@ -77,8 +77,10 @@ class PuddleglumGenerator
 			return '';
 		}
 
+		$pglNamespace = config('puddleglum.namespace');
+
 		return <<<TS
-		export namespace Puddleglum.$tsNamespace {
+		export namespace $pglNamespace.$tsNamespace {
 		    $generatedCode
 		}
 		TS;

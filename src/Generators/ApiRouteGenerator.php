@@ -84,7 +84,7 @@ class ApiRouteGenerator extends AbstractGenerator
 					'pathParameters' => $pathParameters,
 					'request' => $request
 						? Str::of($request->getType()->getName())
-							->replace('App\\', 'Puddleglum\\')
+							->replace('App\\', config('puddleglum.namespace', 'Puddleglum') . '\\')
 							->replace('Http\\', '')
 							->replace('\\', '.')
 							->toString()
@@ -210,12 +210,17 @@ class ApiRouteGenerator extends AbstractGenerator
 			'void',
 			'null',
 			'undefined',
+			'Array',
 		];
 
-		if (in_array($value, $typescriptPrimitives)) {
+		if (Str::of($value)->startsWith($typescriptPrimitives)) {
 			return $value;
 		}
 
-		return config('puddleglum.models_namespace', 'Puddleglum.Models') . '.' . $value;
+		return config('puddleglum.namespace', 'Puddleglum') .
+			'.' .
+			config('puddleglum.models_namespace', 'Models') .
+			'.' .
+			$value;
 	}
 }
