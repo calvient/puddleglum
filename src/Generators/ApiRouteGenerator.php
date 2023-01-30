@@ -210,7 +210,12 @@ class ApiRouteGenerator extends AbstractGenerator
 			'void',
 			'null',
 			'undefined',
-			'Array',
+			'Array<',
+			'Partial<',
+			'Pick<',
+			'Omit<',
+			'Record<',
+			'Readonly<',
 		];
 
 		if (Str::of($value)->startsWith($typescriptPrimitives)) {
