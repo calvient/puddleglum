@@ -53,6 +53,20 @@ class PuddleglumGenerator
 				        .map((key) => `\${encodeURIComponent(key)}=\${encodeURIComponent(params[key], )}`)
 				        .join('&');
 				}
+
+				export type PaginatedResponse<T> = {
+				    current_page: number;
+				    data: T[];
+				    from: number;
+				    last_page: number;
+				    last_page_url: string | null;
+				    links: Array<{url: string | null; label: string; active: boolean}>;
+				    next_page_url: string | null;
+				    per_page: number;
+				    prev_page_url: string | null;
+				    to: number;
+				    total: number;
+				};
 				TS
 				,
 			)

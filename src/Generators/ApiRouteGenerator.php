@@ -216,6 +216,8 @@ class ApiRouteGenerator extends AbstractGenerator
 			'Omit<',
 			'Record<',
 			'Readonly<',
+			'Exclude<',
+			'PaginatedResponse<',
 		];
 
 		if (Str::of($value)->startsWith($typescriptPrimitives)) {
