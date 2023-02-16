@@ -209,6 +209,10 @@ class ModelGenerator extends AbstractGenerator
 		);
 
 		if ($this->isManyRelation($method)) {
+			if ($this->supportsPivotColumns($method)) {
+				$related .= ' & { pivot: { [key: string]: any } }';
+			}
+
 			return TypeScriptType::array($related);
 		}
 
@@ -230,6 +234,13 @@ class ModelGenerator extends AbstractGenerator
 			MorphMany::class,
 			MorphToMany::class,
 		]);
+	}
+
+	protected function supportsPivotColumns(ReflectionMethod $method): bool
+	{
+		$relationType = get_class($method->invoke($this->model));
+
+		return in_array($relationType, [BelongsToMany::class, MorphToMany::class]);
 	}
 
 	protected function isOneRelation(ReflectionMethod $method): bool
