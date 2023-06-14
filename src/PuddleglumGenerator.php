@@ -46,7 +46,7 @@ class PuddleglumGenerator
 				* Changes to this file will be lost when the command is run again
 				*/
 				// eslint-disable-next-line max-classes-per-file
-				import axios from 'axios';
+				import axios, {AxiosRequestConfig} from 'axios';
 
 				function transformToQueryString(params: Record<string, any>): string {
 				    return Object.keys(params)

@@ -2,6 +2,7 @@
 
 namespace Calvient\Puddleglum\Generators;
 
+use App;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use ReflectionClass;
@@ -28,7 +29,7 @@ class ApiRouteGenerator extends AbstractGenerator
 
 	public function getDefinition(): ?string
 	{
-		$apiRoutes = collect(\App::make('router')->getRoutes())
+		$apiRoutes = collect(App::make('router')->getRoutes())
 			->filter(
 				fn($route) => collect(
 					array_key_exists('middleware', $route->action)
@@ -149,7 +150,8 @@ class ApiRouteGenerator extends AbstractGenerator
 
 		// Add precognitive support
 		$signature .= $signature ? ', ' : '';
-		$signature .= 'validationOnly: boolean = false, fieldToValidate: string = ""';
+		$signature .=
+			'validationOnly: boolean = false, fieldToValidate: string = "", config: AxiosRequestConfig = {}';
 
 		return $signature;
 	}
@@ -168,7 +170,7 @@ class ApiRouteGenerator extends AbstractGenerator
 
 		// Add precognitive support
 		$call .=
-			', { headers: { "Precognition": validationOnly, ...fieldToValidate ? {"Precognition-Validate-Only": fieldToValidate} : {} } }';
+			', { headers: { "Precognition": validationOnly, ...fieldToValidate ? {"Precognition-Validate-Only": fieldToValidate} : {} }, ...config }';
 
 		$call .= ')';
 
