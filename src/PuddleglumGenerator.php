@@ -49,9 +49,20 @@ class PuddleglumGenerator
 				import axios, {AxiosRequestConfig} from 'axios';
 
 				function transformToQueryString(params: Record<string, any>): string {
-				    return Object.keys(params)
-				        .map((key) => `\${encodeURIComponent(key)}=\${encodeURIComponent(params[key], )}`)
+				  return Object.entries(params)
+				    .filter(([, value]) => value !== null && value !== undefined)
+				    .map(([key, value]) => {
+				      if (Array.isArray(value)) {
+				        return value
+				          .map(
+				            (arrayItem) =>
+				              `\${encodeURIComponent(key)}[]=\${encodeURIComponent(arrayItem)}`
+				          )
 				        .join('&');
+				      }
+				    return `\${encodeURIComponent(key)}=\${encodeURIComponent(value)}`;
+				  })
+				  .join('&');
 				}
 
 				export type PaginatedResponse<T> = {
