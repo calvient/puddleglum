@@ -4,6 +4,7 @@ namespace Calvient\Puddleglum\Generators;
 
 use Calvient\Puddleglum\Definitions\TypeScriptProperty;
 use Calvient\Puddleglum\Definitions\TypeScriptType;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -74,19 +75,33 @@ class ModelGenerator extends AbstractGenerator
 
     protected function getAccessors(): string
     {
-        return $this->getMethods()
-            ->filter(fn (ReflectionMethod $method) => Str::startsWith($method->getName(), 'get'))
-            ->filter(fn (ReflectionMethod $method) => Str::endsWith($method->getName(), 'Attribute'))
-            ->mapWithKeys(function (ReflectionMethod $method) {
-                $property = (string) Str::of($method->getName())
-                    ->between('get', 'Attribute')
-                    ->snake();
+        return collect($this->reflection->getMethods())
+            ->reject(fn (ReflectionMethod $method) => $method->isStatic() || $method->getNumberOfParameters())
+            ->filter(function (ReflectionMethod $method) {
+                $name = $method->getName();
+                $returnType = $method->getReturnType();
 
+                $isOldStyleAccessor = Str::startsWith($name, 'get') && Str::endsWith($name, 'Attribute');
+                $isNewStyleAccessor = $returnType && $returnType->getName() === Attribute::class;
+
+                return $isOldStyleAccessor || $isNewStyleAccessor;
+            })
+            ->mapWithKeys(function (ReflectionMethod $method) {
+                $name = $method->getName();
+                $returnType = $method->getReturnType();
+
+                if (Str::startsWith($name, 'get') && Str::endsWith($name, 'Attribute')) {
+                    $property = (string) Str::of($name)->between('get', 'Attribute')->snake();
+                } elseif ($returnType && $returnType->getName() === Attribute::class) {
+                    $property = Str::snake($name);
+                } else {
+                    return [];
+                }
                 return [$property => $method];
             })
             ->reject(function (ReflectionMethod $method, string $property) {
                 return $this->columns->contains(
-                    fn (Column $column) => $column->getName() == $property,
+                    fn ($column) => $column['name'] == $property,
                 );
             })
             ->map(function (ReflectionMethod $method, string $property) {
@@ -94,7 +109,7 @@ class ModelGenerator extends AbstractGenerator
                     name: $property,
                     types: TypeScriptType::fromMethod($method),
                     optional: true,
-                    readonly: true,
+                    readonly: true
                 );
             })
             ->join(PHP_EOL.'        ');
