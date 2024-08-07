@@ -13,7 +13,7 @@ class PuddleglumGenerateCommand extends Command
 
 	public function handle()
 	{
-		$outputFile = config('puddleglum.output', resource_path('ts/models.d.ts'));
+		$outputFile = config('puddleglum.output', resource_path('ts/puddleglum'));
 		$generator = new PuddleglumGenerator(output: $outputFile);
 		$generator->execute();
 
