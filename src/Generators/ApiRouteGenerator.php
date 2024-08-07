@@ -139,9 +139,8 @@ class ApiRouteGenerator extends AbstractGenerator
         }
 
         if ($request) {
-            $isOptional = $this->isEveryMemberOptional($request);
             $signature .= $signature ? ', ' : '';
-            $signature .= $isOptional ? "request: $request = {}" : "request: $request";
+            $signature .= "request: $request = {} as $request";
         } elseif ($glumRequest) {
             $request = $this->transformResponseToTypescriptType($glumRequest);
             $isOptional = $this->isEveryMemberOptional($request);
