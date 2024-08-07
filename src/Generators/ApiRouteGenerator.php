@@ -9,19 +9,28 @@ use ReflectionClass;
 
 class ApiRouteGenerator extends AbstractGenerator
 {
-    public function generate(ReflectionClass $reflection): ?string
+    // Since this references a folder, each class will have its own file
+    protected string $filename = 'api/';
+
+    protected string $fileImports = "/* eslint-disable @typescript-eslint/no-unused-vars */\n" .
+    "import axios, {AxiosRequestConfig} from 'axios';\n" .
+    "import {transformToQueryString, PaginatedResponse} from 'puddleglum/utils';\n" .
+    "import {Glum} from 'puddleglum';\n\n";
+
+    public function generate(ReflectionClass $reflection, ?string $namespace = null): ?string
     {
         $this->reflection = $reflection;
         $this->boot();
 
         $definition = $this->getDefinition();
 
-        if (! $definition) {
+        if (!$definition) {
             return null;
         }
 
         return <<<TS
-		export class {$this->tsClassName()} {
+		{$this->fileImports}
+		export default class {$this->tsClassName()} {
 		    $definition
 		}
 		TS;
@@ -31,14 +40,14 @@ class ApiRouteGenerator extends AbstractGenerator
     {
         $apiRoutes = collect(App::make('router')->getRoutes())
             ->filter(
-                fn ($route) => collect(
+                fn($route) => collect(
                     array_key_exists('middleware', $route->action)
                         ? $route->action['middleware']
                         : [],
                 )->contains('api'),
             )
             ->filter(
-                fn ($route) => Str::of(
+                fn($route) => Str::of(
                     array_key_exists('controller', $route->action)
                         ? $route->action['controller']
                         : '',
@@ -46,9 +55,9 @@ class ApiRouteGenerator extends AbstractGenerator
             )
             ->map(function ($route) {
                 $pathParameters = collect(explode('{', Str::of($route->uri)))
-                    ->filter(fn ($part) => Str::contains($part, '}'))
+                    ->filter(fn($part) => Str::contains($part, '}'))
                     ->map(
-                        fn ($part) => [
+                        fn($part) => [
                             'name' => Str::of($part)
                                 ->before('}')
                                 ->replace(['}', '/', '?'], '')
@@ -62,15 +71,15 @@ class ApiRouteGenerator extends AbstractGenerator
                 $controller = new ReflectionClass($controller);
                 $method = $controller->getMethod($methodName);
                 $request = collect($method->getParameters())->first(
-                    fn ($parameter) => $parameter->getClass() &&
+                    fn($parameter) => $parameter->getClass() &&
                         $parameter->getClass()->isSubclassOf(FormRequest::class),
                 );
                 $glumRequest = collect($method->getAttributes())->first(
-                    fn ($attribute) => $attribute->getName() ===
+                    fn($attribute) => $attribute->getName() ===
                         'Calvient\Puddleglum\Attributes\GlumRequest',
                 );
                 $glumResponse = collect($method->getAttributes())->first(
-                    fn ($attribute) => $attribute->getName() ===
+                    fn($attribute) => $attribute->getName() ===
                         'Calvient\Puddleglum\Attributes\GlumResponse',
                 );
 
@@ -85,7 +94,7 @@ class ApiRouteGenerator extends AbstractGenerator
                     'pathParameters' => $pathParameters,
                     'request' => $request
                         ? Str::of($request->getType()->getName())
-                            ->replace('App\\', config('puddleglum.namespace', 'Puddleglum').'\\')
+                            ->replace('App\\', config('puddleglum.namespace', 'Puddleglum') . '\\')
                             ->replace('Http\\', '')
                             ->replace('\\', '.')
                             ->toString()
@@ -97,7 +106,6 @@ class ApiRouteGenerator extends AbstractGenerator
 
         return $apiRoutes
             ->map(function ($route) {
-                $controller = $route['controller'];
                 $action = $route['action'];
                 $method = Str::of($route['methods'][0])
                     ->lower()
@@ -126,16 +134,19 @@ class ApiRouteGenerator extends AbstractGenerator
 
         if ($pathParameters) {
             $signature .= collect($pathParameters)
-                ->map(fn ($parameter) => $parameter['name'].': string|number')
+                ->map(fn($parameter) => $parameter['name'] . ': string|number')
                 ->join(', ');
         }
 
         if ($request) {
+            $isOptional = $this->isEveryMemberOptional($request);
             $signature .= $signature ? ', ' : '';
-            $signature .= 'request: '.$request;
+            $signature .= $isOptional ? "request: $request = {}" : "request: $request";
         } elseif ($glumRequest) {
+            $request = $this->transformResponseToTypescriptType($glumRequest);
+            $isOptional = $this->isEveryMemberOptional($request);
             $signature .= $signature ? ', ' : '';
-            $signature .= 'request: '.$this->transformResponseToTypescriptType($glumRequest);
+            $signature .= $isOptional ? "request: $request = {}" : "request: $request";
         }
 
         // Add precognitive support
@@ -169,25 +180,26 @@ class ApiRouteGenerator extends AbstractGenerator
 
     protected function transformResponseToTypescriptType(
         array|string $response,
-        bool $asGeneric = false,
-    ) {
+        bool         $asGeneric = false,
+    )
+    {
         $prefix = $asGeneric ? '<' : '';
         $suffix = $asGeneric ? '>' : '';
 
         if (is_array($response)) {
-            return $prefix.
-                '{'.
+            return $prefix .
+                '{' .
                 collect($response)
                     ->map(
-                        fn ($value, $key) => $key.
-                            ': '.
+                        fn($value, $key) => $key .
+                            ': ' .
                             $this->transformPhpTypeToTypescript($value),
                     )
-                    ->join(',').
-                '}'.
+                    ->join(',') .
+                '}' .
                 $suffix;
         } else {
-            return $prefix.$this->transformPhpTypeToTypescript($response).$suffix;
+            return $prefix . $this->transformPhpTypeToTypescript($response) . $suffix;
         }
     }
 
@@ -216,10 +228,16 @@ class ApiRouteGenerator extends AbstractGenerator
             return $value;
         }
 
-        return config('puddleglum.namespace', 'Puddleglum').
-            '.'.
-            config('puddleglum.models_namespace', 'Models').
-            '.'.
+        return config('puddleglum.namespace', 'Puddleglum') .
+            '.' .
+            config('puddleglum.models_namespace', 'Models') .
+            '.' .
             $value;
+    }
+
+    private function isEveryMemberOptional(string $type): bool
+    {
+        // Use a regular expression to match any : that is not preceded by ?
+        return !Str::of($type)->test('/(?<!\?)\:/');
     }
 }
