@@ -237,7 +237,11 @@ class ApiRouteGenerator extends AbstractGenerator
 
     private function isEveryMemberOptional(string $type): bool
     {
-        // Use a regular expression to match any : that is not preceded by ?
-        return !Str::of($type)->test('/(?<!\?)\:/');
+        // Split by ; or , and check if every member contains a ?: pattern
+        return Str::of($type)->split('/[;,]/')
+            ->filter(fn($line) => Str::of($line)->contains(':'))
+            ->every(function ($member) {
+                return Str::of($member)->contains('?:');
+            });
     }
 }
