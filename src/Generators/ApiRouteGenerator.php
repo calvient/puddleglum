@@ -236,7 +236,6 @@ class ApiRouteGenerator extends AbstractGenerator
 
     private function isEveryMemberOptional(string $type): bool
     {
-        // Split by ; or , and check if every member contains a ?: pattern
         return Str::of($type)->split('/[;,]/')
             ->filter(fn($line) => Str::of($line)->contains(':'))
             ->every(function ($member) {
