@@ -67,7 +67,14 @@ class ApiRouteGenerator extends AbstractGenerator
                     )
                     ->toArray();
 
-                [$controller, $methodName] = explode('@', $route->action['controller']);
+                $controller = $route->action['controller'];
+                $methodName = '__invoke';
+
+                // Check if the controller is invokable
+                if (Str::contains($controller, '@')) {
+                    [$controller, $methodName] = explode('@', $controller);
+                }
+
                 $controller = new ReflectionClass($controller);
                 $method = $controller->getMethod($methodName);
                 $request = collect($method->getParameters())->first(
@@ -88,7 +95,7 @@ class ApiRouteGenerator extends AbstractGenerator
                         ->after('App\\Http\\Controllers\\')
                         ->replace('\\', '.')
                         ->toString(),
-                    'action' => $methodName,
+                    'action' => $methodName === '__invoke' ? 'invoke' : $methodName,
                     'methods' => $route->methods,
                     'path' => $route->uri,
                     'pathParameters' => $pathParameters,
