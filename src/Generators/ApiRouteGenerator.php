@@ -148,7 +148,7 @@ class ApiRouteGenerator extends AbstractGenerator
         if ($request) {
             $signature .= $signature ? ', ' : '';
             $signature .= "request: $request = {} as $request";
-        } elseif ($glumRequest) {
+        } elseif ($glumRequest !== null) {
             $request = $this->transformResponseToTypescriptType($glumRequest);
             $isOptional = $this->isEveryMemberOptional($request);
             $signature .= $signature ? ', ' : '';
@@ -169,10 +169,11 @@ class ApiRouteGenerator extends AbstractGenerator
         $path = Str::of($path)->startsWith('/') ? $path : "/$path";
         $call = "axios.$method$generic(`$path";
 
-        if ($request || $glumRequest) {
+        if ($request || $glumRequest !== null) {
             $call .= $method === 'get' ? '?${transformToQueryString(request)}`' : '`, request';
         } else {
-            $call .= '`';
+            // For GET/DELETE, close the template literal. For POST/PUT/PATCH, add empty body
+            $call .= in_array($method, ['get', 'delete']) ? '`' : '`, {}';
         }
 
         // Add precognitive support
