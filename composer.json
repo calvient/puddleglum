@@ -22,7 +22,6 @@
         "spatie/laravel-package-tools": "^1.11.0"
     },
     "require-dev": {
-        "brianium/paratest": "^7.4.8",
         "larastan/larastan": "^2.7",
         "nunomaduro/collision": "^7.0|^8.0",
         "orchestra/testbench": "^8.34",
@@ -40,7 +39,7 @@
     },
     "scripts": {
         "stan": "vendor/bin/phpstan analyse",
-        "test": "./vendor/bin/testbench package:test --parallel --no-coverage",
+        "test": "vendor/bin/testbench package:test --no-coverage",
         "test-coverage": "vendor/bin/phpunit --coverage-html coverage"
     },
     "config": {
