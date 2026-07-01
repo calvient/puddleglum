@@ -3,19 +3,37 @@
 namespace Calvient\Puddleglum\Generators;
 
 use App;
+use Calvient\Puddleglum\Support\TypeScriptFormatter;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use ReflectionClass;
+use ReflectionNamedType;
 
 class ApiRouteGenerator extends AbstractGenerator
 {
     // Since this references a folder, each class will have its own file
     protected string $filename = 'api/';
 
-    protected string $fileImports = "/* eslint-disable @typescript-eslint/no-unused-vars */\n" .
-    "import axios, {AxiosRequestConfig} from 'axios';\n" .
-    "import {transformToQueryString, PaginatedResponse} from 'puddleglum/utils';\n" .
-    "import {Glum} from 'puddleglum';\n\n";
+    protected string $fileImports = <<<'TS'
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import axios, { AxiosRequestConfig } from 'axios';
+import { transformToQueryString, PaginatedResponse } from 'puddleglum/utils';
+import { Glum } from 'puddleglum';
+TS;
+
+    public function __construct(private ?Collection $routes = null)
+    {
+    }
+
+    public static function apiRoutesByController(): Collection
+    {
+        return collect(App::make('router')->getRoutes())
+            ->filter(fn($route) => collect($route->action['middleware'] ?? [])->contains('api'))
+            ->map(fn($route) => self::routeMetadata($route))
+            ->filter()
+            ->groupBy('controller');
+    }
 
     public function generate(ReflectionClass $reflection, ?string $namespace = null): ?string
     {
@@ -28,88 +46,14 @@ class ApiRouteGenerator extends AbstractGenerator
             return null;
         }
 
-        return <<<TS
-		{$this->fileImports}
-		export default class {$this->tsClassName()} {
-		    $definition
-		}
-		TS;
+        return $this->fileImports . PHP_EOL . PHP_EOL .
+            TypeScriptFormatter::block("export default class {$this->tsClassName()}", $definition);
     }
 
     public function getDefinition(): ?string
     {
-        $apiRoutes = collect(App::make('router')->getRoutes())
-            ->filter(
-                fn($route) => collect(
-                    array_key_exists('middleware', $route->action)
-                        ? $route->action['middleware']
-                        : [],
-                )->contains('api'),
-            )
-            ->filter(
-                fn($route) => Str::of(
-                    array_key_exists('controller', $route->action)
-                        ? $route->action['controller']
-                        : '',
-                )->contains($this->reflection->getName()),
-            )
-            ->map(function ($route) {
-                $pathParameters = collect(explode('{', Str::of($route->uri)))
-                    ->filter(fn($part) => Str::contains($part, '}'))
-                    ->map(
-                        fn($part) => [
-                            'name' => Str::of($part)
-                                ->before('}')
-                                ->replace(['}', '/', '?'], '')
-                                ->toString(),
-                            'required' => Str::contains($part, '?') ? false : true,
-                        ],
-                    )
-                    ->toArray();
-
-                $controller = $route->action['controller'];
-                $methodName = '__invoke';
-
-                // Check if the controller is invokable
-                if (Str::contains($controller, '@')) {
-                    [$controller, $methodName] = explode('@', $controller);
-                }
-
-                $controller = new ReflectionClass($controller);
-                $method = $controller->getMethod($methodName);
-                $request = collect($method->getParameters())->first(
-                    fn($parameter) => $parameter->getClass() &&
-                        $parameter->getClass()->isSubclassOf(FormRequest::class),
-                );
-                $glumRequest = collect($method->getAttributes())->first(
-                    fn($attribute) => $attribute->getName() ===
-                        'Calvient\Puddleglum\Attributes\GlumRequest',
-                );
-                $glumResponse = collect($method->getAttributes())->first(
-                    fn($attribute) => $attribute->getName() ===
-                        'Calvient\Puddleglum\Attributes\GlumResponse',
-                );
-
-                return [
-                    'controller' => Str::of($controller->getName())
-                        ->after('App\\Http\\Controllers\\')
-                        ->replace('\\', '.')
-                        ->toString(),
-                    'action' => $methodName === '__invoke' ? 'invoke' : $methodName,
-                    'methods' => $route->methods,
-                    'path' => $route->uri,
-                    'pathParameters' => $pathParameters,
-                    'request' => $request
-                        ? Str::of($request->getType()->getName())
-                            ->replace('App\\', config('puddleglum.namespace', 'Puddleglum') . '\\')
-                            ->replace('Http\\', '')
-                            ->replace('\\', '.')
-                            ->toString()
-                        : null,
-                    'glumRequest' => $glumRequest?->getArguments()[0] ?? null,
-                    'glumResponse' => $glumResponse?->getArguments()[0] ?? null,
-                ];
-            });
+        $apiRoutes = $this->routes ?? static::apiRoutesByController()
+            ->get($this->reflection->getName(), collect());
 
         return $apiRoutes
             ->map(function ($route) {
@@ -126,63 +70,70 @@ class ApiRouteGenerator extends AbstractGenerator
                 $glumRequest = $route['glumRequest'];
                 $glumResponse = $route['glumResponse'];
 
-                return <<<TS
-				static async $action({$this->makeApiSignature($pathParameters, $request, $glumRequest)}) {
-				    return {$this->makeAxiosCall($method, $path, $request, $glumRequest, $glumResponse)};
-				}
-				TS;
+                $signature = $this->makeApiSignature($pathParameters, $request, $glumRequest);
+                $axiosCall = $this->makeAxiosCall($method, $path, $request, $glumRequest, $glumResponse);
+
+                $methodHeader = "static async {$action}(" . PHP_EOL .
+                    TypeScriptFormatter::indent($signature) . PHP_EOL .
+                    ')';
+
+                return TypeScriptFormatter::block($methodHeader, "return {$axiosCall};");
             })
-            ->join(PHP_EOL);
+            ->join(PHP_EOL . PHP_EOL);
     }
 
     protected function makeApiSignature($pathParameters, $request, $glumRequest): string
     {
-        $signature = '';
+        $parameters = [];
 
         if ($pathParameters) {
-            $signature .= collect($pathParameters)
-                ->map(fn($parameter) => $parameter['name'] . ': string|number')
-                ->join(', ');
+            $parameters = collect($pathParameters)
+                ->map(fn($parameter) => $parameter['name'] . ': string | number')
+                ->all();
         }
 
         if ($request) {
-            $signature .= $signature ? ', ' : '';
-            $signature .= "request: $request = {} as $request";
+            $parameters[] = "request: {$request} = {} as {$request}";
         } elseif ($glumRequest !== null) {
             $request = $this->transformResponseToTypescriptType($glumRequest);
             $isOptional = $this->isEveryMemberOptional($request);
-            $signature .= $signature ? ', ' : '';
-            $signature .= $isOptional ? "request: $request = {}" : "request: $request";
+            $parameters[] = $isOptional ? "request: {$request} = {}" : "request: {$request}";
         }
 
-        // Add precognitive support
-        $signature .= $signature ? ', ' : '';
-        $signature .=
-            'validationOnly: boolean = false, fieldToValidate: string = "", config: AxiosRequestConfig = {}';
+        $parameters[] = 'validationOnly: boolean = false';
+        $parameters[] = "fieldToValidate: string = ''";
+        $parameters[] = 'config: AxiosRequestConfig = {}';
 
-        return $signature;
+        return collect($parameters)
+            ->map(fn(string $parameter) => $parameter . ',')
+            ->join(PHP_EOL);
     }
 
     protected function makeAxiosCall($method, $path, $request, $glumRequest, $response): string
     {
         $generic = $response ? $this->transformResponseToTypescriptType($response, true) : '';
         $path = Str::of($path)->startsWith('/') ? $path : "/$path";
-        $call = "axios.$method$generic(`$path";
+        $pathArgument = "`{$path}";
 
         if ($request || $glumRequest !== null) {
-            $call .= $method === 'get' ? '?${transformToQueryString(request)}`' : '`, request';
+            $pathArgument .= $method === 'get' ? '?${transformToQueryString(request)}`' : '`';
         } else {
-            // For GET/DELETE, close the template literal. For POST/PUT/PATCH, add empty body
-            $call .= in_array($method, ['get', 'delete']) ? '`' : '`, {}';
+            $pathArgument .= '`';
         }
 
-        // Add precognitive support
-        $call .=
-            ', { headers: { "Precognition": validationOnly, ...fieldToValidate ? {"Precognition-Validate-Only": fieldToValidate} : {} }, ...config }';
+        $arguments = [$pathArgument];
 
-        $call .= ')';
+        if ($request || $glumRequest !== null) {
+            if ($method !== 'get') {
+                $arguments[] = 'request';
+            }
+        } elseif (! in_array($method, ['get', 'delete'], true)) {
+            $arguments[] = '{}';
+        }
 
-        return $call;
+        $arguments[] = $this->makeAxiosConfig();
+
+        return TypeScriptFormatter::call("axios.{$method}{$generic}", $arguments);
     }
 
     protected function transformResponseToTypescriptType(
@@ -195,14 +146,16 @@ class ApiRouteGenerator extends AbstractGenerator
 
         if (is_array($response)) {
             return $prefix .
-                '{' .
+                '{' . PHP_EOL .
                 collect($response)
                     ->map(
                         fn($value, $key) => $key .
                             ': ' .
-                            $this->transformPhpTypeToTypescript($value),
+                            $this->transformPhpTypeToTypescript($value) .
+                            ';',
                     )
-                    ->join(',') .
+                    ->pipe(fn($members) => TypeScriptFormatter::indent($members->join(PHP_EOL))) .
+                PHP_EOL .
                 '}' .
                 $suffix;
         } else {
@@ -212,6 +165,10 @@ class ApiRouteGenerator extends AbstractGenerator
 
     protected function transformPhpTypeToTypescript($value)
     {
+        if (preg_match('/^PaginatedResponse<([A-Za-z_][A-Za-z0-9_]*)>$/', $value, $matches)) {
+            return 'PaginatedResponse<' . $this->transformPhpTypeToTypescript($matches[1]) . '>';
+        }
+
         $typescriptPrimitives = [
             'string',
             'number',
@@ -231,7 +188,7 @@ class ApiRouteGenerator extends AbstractGenerator
             'PaginatedResponse<',
         ];
 
-        if (Str::of($value)->startsWith($typescriptPrimitives)) {
+        if (Str::of($value)->startsWith($typescriptPrimitives) || Str::of($value)->contains('.')) {
             return $value;
         }
 
@@ -249,5 +206,93 @@ class ApiRouteGenerator extends AbstractGenerator
             ->every(function ($member) {
                 return Str::of($member)->contains('?:');
             });
+    }
+
+    private function makeAxiosConfig(): string
+    {
+        return <<<'TS'
+{
+  headers: {
+    Precognition: validationOnly,
+    ...(fieldToValidate
+      ? { 'Precognition-Validate-Only': fieldToValidate }
+      : {}),
+  },
+  ...config,
+}
+TS;
+    }
+
+    private static function routeMetadata($route): ?array
+    {
+        $controllerAction = $route->action['controller'] ?? null;
+        if (! is_string($controllerAction) || $controllerAction === '') {
+            return null;
+        }
+
+        [$controller, $methodName] = self::controllerAndMethod($controllerAction);
+        $controller = ltrim($controller, '\\');
+
+        if (! class_exists($controller) || ! method_exists($controller, $methodName)) {
+            return null;
+        }
+
+        $controllerReflection = new ReflectionClass($controller);
+        $method = $controllerReflection->getMethod($methodName);
+        $request = collect($method->getParameters())->first(
+            fn($parameter) => $parameter->getClass() &&
+                $parameter->getClass()->isSubclassOf(FormRequest::class),
+        );
+        $requestType = $request?->getType();
+        $glumRequest = collect($method->getAttributes())->first(
+            fn($attribute) => $attribute->getName() ===
+                'Calvient\Puddleglum\Attributes\GlumRequest',
+        );
+        $glumResponse = collect($method->getAttributes())->first(
+            fn($attribute) => $attribute->getName() ===
+                'Calvient\Puddleglum\Attributes\GlumResponse',
+        );
+
+        return [
+            'controller' => $controller,
+            'action' => $methodName === '__invoke' ? 'invoke' : $methodName,
+            'methods' => $route->methods,
+            'path' => $route->uri,
+            'pathParameters' => self::pathParameters($route->uri),
+            'request' => $requestType instanceof ReflectionNamedType
+                ? Str::of($requestType->getName())
+                    ->replace('App\\', config('puddleglum.namespace', 'Puddleglum') . '\\')
+                    ->replace('Http\\', '')
+                    ->replace('\\', '.')
+                    ->toString()
+                : null,
+            'glumRequest' => $glumRequest?->getArguments()[0] ?? null,
+            'glumResponse' => $glumResponse?->getArguments()[0] ?? null,
+        ];
+    }
+
+    private static function controllerAndMethod(string $controllerAction): array
+    {
+        if (Str::contains($controllerAction, '@')) {
+            return explode('@', $controllerAction, 2);
+        }
+
+        return [$controllerAction, '__invoke'];
+    }
+
+    private static function pathParameters(string $uri): array
+    {
+        return collect(explode('{', $uri))
+            ->filter(fn($part) => Str::contains($part, '}'))
+            ->map(
+                fn($part) => [
+                    'name' => Str::of($part)
+                        ->before('}')
+                        ->replace(['}', '/', '?'], '')
+                        ->toString(),
+                    'required' => ! Str::contains($part, '?'),
+                ],
+            )
+            ->toArray();
     }
 }

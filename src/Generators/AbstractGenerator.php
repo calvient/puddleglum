@@ -3,6 +3,7 @@
 namespace Calvient\Puddleglum\Generators;
 
 use Calvient\Puddleglum\Contracts\Generator;
+use Calvient\Puddleglum\Support\TypeScriptFormatter;
 use ReflectionClass;
 
 abstract class AbstractGenerator implements Generator
@@ -23,7 +24,7 @@ abstract class AbstractGenerator implements Generator
             $definition = "";
         }
 
-        return "export interface {$this->tsClassName()} { $definition }";
+        return TypeScriptFormatter::interface($this->tsClassName(), $definition);
     }
 
     protected function boot(): void
