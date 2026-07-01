@@ -2,34 +2,35 @@
 
 namespace Calvient\Puddleglum\Definitions;
 
-use Illuminate\Support\Collection;
-
 class TypeScriptProperty
 {
-	public function __construct(
-		public string $name,
-		public string|array $types,
-		public bool $optional = false,
-		public bool $readonly = false,
-		public bool $nullable = false,
-	) {
-	}
+    public function __construct(
+        public string $name,
+        public string|array $types,
+        public bool $optional = false,
+        public bool $readonly = false,
+        public bool $nullable = false,
+    ) {
+    }
 
-	public function getTypes(): string
-	{
-		return collect($this->types)
-			->when($this->nullable, fn(Collection $types) => $types->push(TypeScriptType::NULL))
-			->join(' | ', '');
-	}
+    public function getTypes(): string
+    {
+        $types = is_array($this->types) ? $this->types : [$this->types];
 
-	public function __toString(): string
-	{
-		return collect($this->name)
-			->when($this->readonly, fn(Collection $definition) => $definition->prepend('readonly '))
-			->when($this->optional, fn(Collection $definition) => $definition->push('?'))
-			->push(': ')
-			->push($this->getTypes())
-			->push(';')
-			->join('');
-	}
+        if ($this->nullable) {
+            $types[] = TypeScriptType::NULL;
+        }
+
+        return implode(' | ', $types);
+    }
+
+    public function __toString(): string
+    {
+        return ($this->readonly ? 'readonly ' : '') .
+            $this->name .
+            ($this->optional ? '?' : '') .
+            ': ' .
+            $this->getTypes() .
+            ';';
+    }
 }

@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use ReflectionClass;
 use ReflectionMethod;
+use ReflectionNamedType;
 use Throwable;
 
 class ModelGenerator extends AbstractGenerator
@@ -28,6 +29,8 @@ class ModelGenerator extends AbstractGenerator
     protected Model $model;
 
     protected Collection $columns;
+
+    protected ?Collection $relationInfos = null;
 
     public function __construct()
     {
@@ -38,12 +41,12 @@ class ModelGenerator extends AbstractGenerator
     {
         return collect([
             $this->getProperties(),
-            $this->getRelations(),
-            $this->getManyRelations(),
+            $this->getRelationProperties(),
+            $this->getManyRelationProperties(),
             $this->getAccessors(),
         ])
             ->filter(fn (string $part) => ! empty($part))
-            ->join(PHP_EOL.'        ');
+            ->join(PHP_EOL);
     }
 
     /**
@@ -70,7 +73,7 @@ class ModelGenerator extends AbstractGenerator
                     nullable: $column['nullable'],
                 );
             })
-            ->join(PHP_EOL.'        ');
+            ->join(PHP_EOL);
     }
 
     protected function getAccessors(): string
@@ -78,26 +81,10 @@ class ModelGenerator extends AbstractGenerator
         return collect($this->reflection->getMethods())
             ->reject(fn (ReflectionMethod $method) => $method->isStatic() || $method->getNumberOfParameters())
             ->filter(function (ReflectionMethod $method) {
-                $name = $method->getName();
-                $returnType = $method->getReturnType();
-
-                $isOldStyleAccessor = Str::startsWith($name, 'get') && Str::endsWith($name, 'Attribute');
-                $isNewStyleAccessor = $returnType && $returnType->getName() === Attribute::class;
-
-                return $isOldStyleAccessor || $isNewStyleAccessor;
+                return $this->isAccessorMethod($method);
             })
             ->mapWithKeys(function (ReflectionMethod $method) {
-                $name = $method->getName();
-                $returnType = $method->getReturnType();
-
-                if (Str::startsWith($name, 'get') && Str::endsWith($name, 'Attribute')) {
-                    $property = (string) Str::of($name)->between('get', 'Attribute')->snake();
-                } elseif ($returnType && $returnType->getName() === Attribute::class) {
-                    $property = Str::snake($name);
-                } else {
-                    return [];
-                }
-                return [$property => $method];
+                return [$this->accessorPropertyName($method) => $method];
             })
             ->reject(function (ReflectionMethod $method, string $property) {
                 return $this->columns->contains(
@@ -112,72 +99,90 @@ class ModelGenerator extends AbstractGenerator
                     readonly: true
                 );
             })
-            ->join(PHP_EOL.'        ');
+            ->join(PHP_EOL);
     }
 
-    protected function getRelations(): string
+    protected function getRelationProperties(): string
     {
-        return $this->getRelationMethods()
-            ->map(function (ReflectionMethod $method) {
+        return $this->relationInfos()
+            ->map(function (array $relation) {
                 return (string) new TypeScriptProperty(
-                    name: Str::snake($method->getName()),
-                    types: $this->getRelationType($method),
+                    name: $relation['name'],
+                    types: $this->getRelationType($relation),
                     optional: true,
                     nullable: true,
                 );
             })
-            ->join(PHP_EOL.'        ');
+            ->join(PHP_EOL);
     }
 
-    protected function getManyRelations(): string
+    protected function getManyRelationProperties(): string
     {
-        return $this->getRelationMethods()
-            ->filter(fn (ReflectionMethod $method) => $this->isManyRelation($method))
-            ->map(function (ReflectionMethod $method) {
+        return $this->relationInfos()
+            ->filter(fn (array $relation) => $relation['many'])
+            ->map(function (array $relation) {
                 return (string) new TypeScriptProperty(
-                    name: Str::snake($method->getName()).'_count',
+                    name: $relation['name'].'_count',
                     types: TypeScriptType::NUMBER,
                     optional: true,
                     nullable: true,
                 );
             })
-            ->join(PHP_EOL.'        ');
+            ->join(PHP_EOL);
     }
 
-    protected function getRelationMethods(): Collection
+    protected function relationInfos(): Collection
     {
-        return $this->getMethods()
-            ->filter(function (ReflectionMethod $method) {
-                try {
-                    return $method->invoke($this->model) instanceof Relation;
-                } catch (Throwable) {
-                    return false;
-                }
-            })
+        if ($this->relationInfos !== null) {
+            return $this->relationInfos;
+        }
+
+        $this->relationInfos = $this->getMethods()
+            ->reject(fn (ReflectionMethod $method) => $this->isAccessorMethod($method))
             // [TODO] Resolve trait/parent relations as well (e.g. DatabaseNotification)
             // skip traits for awhile
-            ->filter(function (ReflectionMethod $method) {
-                return collect($this->reflection->getTraits())
-                    ->filter(function (ReflectionClass $trait) use ($method) {
-                        return $trait->hasMethod($method->name);
-                    })
-                    ->isEmpty();
-            });
+            ->reject(fn (ReflectionMethod $method) => $this->methodComesFromTrait($method))
+            ->map(function (ReflectionMethod $method) {
+                try {
+                    $relation = $method->invoke($this->model);
+                } catch (Throwable) {
+                    return null;
+                }
+
+                if (! $relation instanceof Relation) {
+                    return null;
+                }
+
+                $relationClass = get_class($relation);
+
+                return [
+                    'method' => $method,
+                    'name' => Str::snake($method->getName()),
+                    'related' => $this->getRelatedType($relation),
+                    'many' => in_array($relationClass, $this->manyRelationClasses(), true),
+                    'one' => in_array($relationClass, $this->oneRelationClasses(), true),
+                    'pivot' => in_array($relationClass, [BelongsToMany::class, MorphToMany::class], true),
+                ];
+            })
+            ->filter()
+            ->values();
+
+        return $this->relationInfos;
     }
 
     protected function getMethods(): Collection
     {
         return collect($this->reflection->getMethods(ReflectionMethod::IS_PUBLIC))
             ->reject(fn (ReflectionMethod $method) => $method->isStatic())
-            ->reject(fn (ReflectionMethod $method) => $method->getNumberOfParameters());
+            ->reject(fn (ReflectionMethod $method) => $method->getNumberOfParameters() > 0);
     }
 
     protected function getPropertyType(string $type): string|array
     {
         $tsType = match ($type) {
-            'tinyint' => TypeScriptType::BOOLEAN,
+            'tinyint', 'boolean' => TypeScriptType::BOOLEAN,
             'longtext', 'text', 'varchar', 'timestamp', 'datetime', 'date' => TypeScriptType::STRING,
-            'int', 'bigint', 'double', 'decimal' => TypeScriptType::NUMBER,
+            'int', 'integer', 'bigint', 'float', 'double', 'decimal', 'numeric' => TypeScriptType::NUMBER,
             'json' => [TypeScriptType::array(), TypeScriptType::ANY],
             default => TypeScriptType::ANY
         };
@@ -185,60 +190,81 @@ class ModelGenerator extends AbstractGenerator
         return $tsType;
     }
 
-    protected function getRelationType(ReflectionMethod $method): string
+    protected function getRelationType(array $relation): string
     {
-        $relationReturn = $method->invoke($this->model);
-        $related = str_replace('\\', '.', get_class($relationReturn->getRelated()));
-        $related = str_replace(
-            'App.',
-            config('puddleglum.namespace', 'Puddleglum').'.',
-            $related,
-        );
+        $related = $relation['related'];
 
-        if ($this->isManyRelation($method)) {
-            if ($this->supportsPivotColumns($method)) {
+        if ($relation['many']) {
+            if ($relation['pivot']) {
                 $related .= ' & { pivot: { [key: string]: any } }';
             }
 
             return TypeScriptType::array($related);
         }
 
-        if ($this->isOneRelation($method)) {
+        if ($relation['one']) {
             return $related;
         }
 
         return TypeScriptType::ANY;
     }
 
-    protected function isManyRelation(ReflectionMethod $method): bool
+    private function isAccessorMethod(ReflectionMethod $method): bool
     {
-        $relationType = get_class($method->invoke($this->model));
+        $name = $method->getName();
+        $returnType = $method->getReturnType();
 
-        return in_array($relationType, [
+        return (Str::startsWith($name, 'get') && Str::endsWith($name, 'Attribute')) ||
+            ($returnType instanceof ReflectionNamedType && $returnType->getName() === Attribute::class);
+    }
+
+    private function accessorPropertyName(ReflectionMethod $method): string
+    {
+        $name = $method->getName();
+
+        if (Str::startsWith($name, 'get') && Str::endsWith($name, 'Attribute')) {
+            return (string) Str::of($name)->between('get', 'Attribute')->snake();
+        }
+
+        return Str::snake($name);
+    }
+
+    private function methodComesFromTrait(ReflectionMethod $method): bool
+    {
+        return collect($this->reflection->getTraits())
+            ->filter(fn (ReflectionClass $trait) => $trait->hasMethod($method->name))
+            ->isNotEmpty();
+    }
+
+    private function getRelatedType(Relation $relation): string
+    {
+        $related = str_replace('\\', '.', get_class($relation->getRelated()));
+
+        return str_replace(
+            'App.',
+            config('puddleglum.namespace', 'Puddleglum').'.',
+            $related,
+        );
+    }
+
+    private function manyRelationClasses(): array
+    {
+        return [
             HasMany::class,
             BelongsToMany::class,
             HasManyThrough::class,
             MorphMany::class,
             MorphToMany::class,
-        ]);
+        ];
     }
 
-    protected function supportsPivotColumns(ReflectionMethod $method): bool
+    private function oneRelationClasses(): array
     {
-        $relationType = get_class($method->invoke($this->model));
-
-        return in_array($relationType, [BelongsToMany::class, MorphToMany::class]);
-    }
-
-    protected function isOneRelation(ReflectionMethod $method): bool
-    {
-        $relationType = get_class($method->invoke($this->model));
-
-        return in_array($relationType, [
+        return [
             HasOne::class,
             BelongsTo::class,
             MorphOne::class,
             HasOneThrough::class,
-        ]);
+        ];
     }
 }

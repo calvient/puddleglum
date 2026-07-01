@@ -4,6 +4,7 @@ namespace Calvient\Puddleglum\Generators;
 
 use Calvient\Puddleglum\Definitions\TypeScriptProperty;
 use Calvient\Puddleglum\Definitions\TypeScriptType;
+use Calvient\Puddleglum\Support\TypeScriptFormatter;
 use Doctrine\DBAL\Schema\Column;
 use Doctrine\DBAL\Types\Types;
 use Illuminate\Foundation\Http\FormRequest;
@@ -14,8 +15,6 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ClosureValidationRule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\Validator;
-use JetBrains\PhpStorm\Pure;
-use Laravel\Fortify\Rules\Password as FortifyPassword;
 
 class RequestGenerator extends AbstractGenerator
 {
@@ -24,6 +23,8 @@ class RequestGenerator extends AbstractGenerator
     protected FormRequest $request;
 
     protected Validator $validator;
+
+    private array $columnsByTable = [];
 
     public function getDefinition(): ?string
     {
@@ -52,7 +53,7 @@ class RequestGenerator extends AbstractGenerator
             return null;
         }
 
-        return $this->rulesToStringArray($rules)->join(PHP_EOL.'        ');
+        return $this->rulesToStringArray($rules)->join(PHP_EOL);
     }
 
     /**
@@ -68,12 +69,17 @@ class RequestGenerator extends AbstractGenerator
         $method = $clazz->getMethod('getValidatorInstance');
         $method->setAccessible(true);
 
-        /** @var \Illuminate\Validation\Validator $validator */
-        $this->validator = $method->invoke($this->request);
+        $validator = $method->invoke($this->request);
+
+        if (! $validator instanceof Validator) {
+            throw new \RuntimeException('Unable to resolve a validator for the form request.');
+        }
+
+        $this->validator = $validator;
     }
 
     /**
-     * @return string[]|null
+     * @return array<string, array{name: string, types: array<int, string>, optional: bool, nullable: bool}>|null
      */
     private function parseRules(string $property, array|string $rules): ?array
     {
@@ -152,9 +158,10 @@ class RequestGenerator extends AbstractGenerator
 
         return collect(
             match (true) {
-                $rule instanceof Password, $rule instanceof FortifyPassword => ['string' => null],
+                $rule instanceof Password,
+                    is_a($rule, 'Laravel\\Fortify\\Rules\\Password') => ['string' => null],
                 $rule instanceof ClosureValidationRule => ['any' => null],
-                default => null
+                default => [],
             },
         );
     }
@@ -164,11 +171,10 @@ class RequestGenerator extends AbstractGenerator
      */
     private function parseRuleString(string $property, string $rule): Collection
     {
-        return collect(explode(':', $rule, 2))->mapWithKeys(
-            fn (string $args, int|string $key) => is_int($key)
-                ? [$this->parseRuleName($property, $args) => null]
-                : [$this->parseRuleName($property, $key, $args) => $args],
-        );
+        [$ruleName, $args] = array_pad(explode(':', $rule, 2), 2, null);
+        $type = $this->parseRuleName($property, $ruleName, $args);
+
+        return $type === null ? collect() : collect([$type => $args]);
     }
 
     /**
@@ -197,10 +203,11 @@ class RequestGenerator extends AbstractGenerator
      */
     private function resolveColumn(string $property, ?string $args): ?string
     {
-        $args = explode(',', $args);
-        if (count($args) === 0) {
+        if ($args === null || $args === '') {
             return null;
         }
+
+        $args = explode(',', $args);
 
         $table = $args[0];
         $columnName = Arr::get($args, 1) ?? $property;
@@ -217,34 +224,54 @@ class RequestGenerator extends AbstractGenerator
             return null;
         }
 
-        $columns = collect(Schema::getColumns($table));
+        $columns = $this->columnsForTable($table);
 
-        /** @var Column $column */
-        $column = $columns->first(fn (Column $column) => $column->getName() === $columnName);
+        $column = $columns->first(
+            fn (array|Column $column) => $column instanceof Column
+                ? $column->getName() === $columnName
+                : ($column['name'] ?? null) === $columnName,
+        );
+
+        if ($column === null) {
+            return null;
+        }
+
+        if (is_array($column)) {
+            return $this->getColumnType($column['type_name'] ?? $column['type'] ?? TypeScriptType::ANY);
+        }
 
         return $this->getColumnType($column->getType()->getName());
     }
 
-    #[Pure]
+    private function columnsForTable(string $table): Collection
+    {
+        if (! array_key_exists($table, $this->columnsByTable)) {
+            $this->columnsByTable[$table] = collect(Schema::getColumns($table));
+        }
+
+        return $this->columnsByTable[$table];
+    }
+
     protected function getColumnType(string $type): string|array
     {
         return match ($type) {
-            Types::ARRAY, Types::JSON, Types::SIMPLE_ARRAY => [
+            Types::ARRAY, Types::JSON, Types::SIMPLE_ARRAY, 'json' => [
                 TypeScriptType::array(),
                 TypeScriptType::ANY,
             ],
             Types::ASCII_STRING, Types::BINARY, Types::BLOB, Types::DATE_MUTABLE,
             Types::DATE_IMMUTABLE, Types::DATEINTERVAL, Types::DATETIME_MUTABLE,
             Types::DATETIME_IMMUTABLE, Types::DATETIMETZ_MUTABLE, Types::DATETIMETZ_IMMUTABLE,
-            Types::GUID, Types::STRING, Types::TEXT => TypeScriptType::STRING,
+            Types::GUID, Types::STRING, Types::TEXT, 'varchar', 'longtext', 'timestamp', 'datetime',
+            'date' => TypeScriptType::STRING,
             Types::BIGINT, Types::DECIMAL, Types::FLOAT, Types::INTEGER, Types::SMALLINT,
-            Types::TIME_MUTABLE, Types::TIME_IMMUTABLE => TypeScriptType::NUMBER,
-            Types::BOOLEAN => TypeScriptType::BOOLEAN,
+            Types::TIME_MUTABLE, Types::TIME_IMMUTABLE, 'int', 'double', 'numeric' => TypeScriptType::NUMBER,
+            Types::BOOLEAN, 'tinyint' => TypeScriptType::BOOLEAN,
             default => TypeScriptType::ANY
         };
     }
 
-    private function rulesToStringArray(Collection $rules, int $depth = 0): Collection
+    private function rulesToStringArray(Collection $rules): Collection
     {
         /** @var Collection $arrayRules */
         /** @var Collection $rules */
@@ -254,13 +281,13 @@ class RequestGenerator extends AbstractGenerator
         );
 
         return $rules
-            ->merge($this->mergeArrays($arrayRules, $depth + 1))
+            ->merge($this->mergeArrays($arrayRules))
             ->values()
             ->map(fn (array $value) => strval(app()->make(TypeScriptProperty::class, $value)))
             ->values();
     }
 
-    private function mergeArrays(Collection $rules, int $depth): Collection
+    private function mergeArrays(Collection $rules): Collection
     {
         /** @var Collection $dotRules */
         /** @var Collection $rules */
@@ -326,10 +353,7 @@ class RequestGenerator extends AbstractGenerator
 
         $rules = collect($rules);
 
-        $prefix = str_repeat(' ', 8 + $depth * 4);
-        $endPrefix = substr($prefix, 4);
-
-        return $rules->map(function (array $value) use ($depth, $prefix, $endPrefix) {
+        return $rules->map(function (array $value) {
             $result = Arr::except($value, ['is_array', 'children']);
 
             if (empty($value['children'])) {
@@ -355,15 +379,9 @@ class RequestGenerator extends AbstractGenerator
             }
 
             if ($children->isNotEmpty()) {
-                $typeObject = $this->rulesToStringArray($children, $depth)
-                    ->map(fn (string $line) => "$prefix$line")
-                    ->join(PHP_EOL);
-
-                $typeObject = <<<END
-				{
-				$typeObject
-				$endPrefix}
-				END;
+                $typeObject = '{' . PHP_EOL .
+                    TypeScriptFormatter::indent($this->rulesToStringArray($children)->join(PHP_EOL)) .
+                    PHP_EOL . '}';
 
                 if ($value['is_array']) {
                     $typeObject = "Array<$typeObject>";
