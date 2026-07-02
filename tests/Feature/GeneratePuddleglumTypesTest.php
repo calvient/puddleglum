@@ -49,6 +49,26 @@ class GeneratePuddleglumTypesTest extends TestCase
         $this->assertGeneratedTreeMatchesFixture($outputDirectory);
     }
 
+    public function test_generate_command_emits_lint_safe_api_import_order(): void
+    {
+        $outputDirectory = $this->generateTypes();
+        $contents = file_get_contents($outputDirectory . '/api/puddleglum/ProductController.ts');
+
+        $this->assertSame(
+            [
+                "import axios, {AxiosRequestConfig} from 'axios';",
+                "import {Glum} from 'puddleglum';",
+                "import {transformToQueryString, PaginatedResponse} from 'puddleglum/utils';",
+            ],
+            array_values(
+                array_filter(
+                    explode(PHP_EOL, $contents),
+                    fn(string $line) => str_starts_with($line, 'import '),
+                ),
+            ),
+        );
+    }
+
     public function test_generate_command_does_not_rewrite_unchanged_files(): void
     {
         $outputDirectory = $this->generateTypes();
