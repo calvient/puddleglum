@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import axios, { AxiosRequestConfig } from 'axios';
-import { Glum } from 'puddleglum';
-import { transformToQueryString, PaginatedResponse } from 'puddleglum/utils';
+import axios, {AxiosRequestConfig} from 'axios';
+import {Glum} from 'puddleglum';
+import {transformToQueryString, PaginatedResponse} from 'puddleglum/utils';
 
 export default class ProductController {
   static async index(

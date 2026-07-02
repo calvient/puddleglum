@@ -54,12 +54,19 @@ class GeneratePuddleglumTypesTest extends TestCase
         $outputDirectory = $this->generateTypes();
         $contents = file_get_contents($outputDirectory . '/api/puddleglum/ProductController.ts');
 
-        $glumImport = strpos($contents, "import { Glum } from 'puddleglum';");
-        $utilsImport = strpos($contents, "import { transformToQueryString, PaginatedResponse } from 'puddleglum/utils';");
-
-        $this->assertNotFalse($glumImport);
-        $this->assertNotFalse($utilsImport);
-        $this->assertLessThan($utilsImport, $glumImport);
+        $this->assertSame(
+            [
+                "import axios, {AxiosRequestConfig} from 'axios';",
+                "import {Glum} from 'puddleglum';",
+                "import {transformToQueryString, PaginatedResponse} from 'puddleglum/utils';",
+            ],
+            array_values(
+                array_filter(
+                    explode(PHP_EOL, $contents),
+                    fn(string $line) => str_starts_with($line, 'import '),
+                ),
+            ),
+        );
     }
 
     public function test_generate_command_does_not_rewrite_unchanged_files(): void

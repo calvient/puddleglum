@@ -18,9 +18,9 @@ class ApiRouteGenerator extends AbstractGenerator
 
     protected string $fileImports = <<<'TS'
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import axios, { AxiosRequestConfig } from 'axios';
-import { Glum } from 'puddleglum';
-import { transformToQueryString, PaginatedResponse } from 'puddleglum/utils';
+import axios, {AxiosRequestConfig} from 'axios';
+import {Glum} from 'puddleglum';
+import {transformToQueryString, PaginatedResponse} from 'puddleglum/utils';
 TS;
 
     public function __construct(private ?Collection $routes = null)
