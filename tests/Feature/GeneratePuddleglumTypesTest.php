@@ -74,6 +74,14 @@ class GeneratePuddleglumTypesTest extends TestCase
         $this->assertFileDoesNotExist($staleFile);
     }
 
+    public function test_generate_command_keeps_api_files_when_namespace_matches_generated_namespace_prefix(): void
+    {
+        $outputDirectory = $this->generateTypes(namespace: 'Glum');
+
+        $this->assertFileExists($outputDirectory . '/api/ProductController.ts');
+        $this->assertFileExists($outputDirectory . '/api/ProductControllerArchive.ts');
+    }
+
     public function test_generate_command_invokes_each_model_relation_once(): void
     {
         $this->generateTypes();
@@ -84,12 +92,12 @@ class GeneratePuddleglumTypesTest extends TestCase
         $this->assertSame(1, \App\Models\Product::$featuresRelationCalls);
     }
 
-    private function generateTypes(): string
+    private function generateTypes(string $namespace = 'Puddleglum'): string
     {
         $outputDirectory = $this->fixtureRoot . '/resources/ts/puddleglum';
 
         config()->set('puddleglum.output', $outputDirectory);
-        config()->set('puddleglum.namespace', 'Puddleglum');
+        config()->set('puddleglum.namespace', $namespace);
         config()->set('puddleglum.models_namespace', 'Models');
 
         chdir($this->fixtureRoot);

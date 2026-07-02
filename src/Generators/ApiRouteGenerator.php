@@ -8,6 +8,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use ReflectionClass;
+use ReflectionMethod;
 use ReflectionNamedType;
 
 class ApiRouteGenerator extends AbstractGenerator
@@ -239,11 +240,7 @@ TS;
 
         $controllerReflection = new ReflectionClass($controller);
         $method = $controllerReflection->getMethod($methodName);
-        $request = collect($method->getParameters())->first(
-            fn($parameter) => $parameter->getClass() &&
-                $parameter->getClass()->isSubclassOf(FormRequest::class),
-        );
-        $requestType = $request?->getType();
+        $requestType = self::formRequestType($method);
         $glumRequest = collect($method->getAttributes())->first(
             fn($attribute) => $attribute->getName() ===
                 'Calvient\Puddleglum\Attributes\GlumRequest',
@@ -294,5 +291,22 @@ TS;
                 ],
             )
             ->toArray();
+    }
+
+    private static function formRequestType(ReflectionMethod $method): ?ReflectionNamedType
+    {
+        foreach ($method->getParameters() as $parameter) {
+            $type = $parameter->getType();
+
+            if (! $type instanceof ReflectionNamedType || $type->isBuiltin()) {
+                continue;
+            }
+
+            if (is_a($type->getName(), FormRequest::class, true)) {
+                return $type;
+            }
+        }
+
+        return null;
     }
 }

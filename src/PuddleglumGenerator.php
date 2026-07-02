@@ -89,7 +89,7 @@ class PuddleglumGenerator
                     $folder = $this->kebabifyPath($folder);
 
                     foreach ($contents as $file) {
-                        $generatedFiles[$filename . $folder . '/' . $file['classFilename']] = $file['contents'];
+                        $generatedFiles[$this->relativePath($filename, (string) $folder, $file['classFilename'])] = $file['contents'];
                     }
                 } else {
                     $generatedFiles[$filename] = TypeScriptFormatter::namespace(
@@ -228,10 +228,10 @@ TS;
 
         foreach ($files as $relativePath => $chunks) {
             $contents = TypeScriptFormatter::file(implode(PHP_EOL . PHP_EOL, $chunks));
-            $path = $this->output . '/' . $relativePath;
+            $path = $this->outputPath($relativePath);
 
             TypeScriptFormatter::writeFileIfChanged($path, $contents);
-            $expectedPaths[$path] = true;
+            $expectedPaths[realpath($path) ?: $path] = true;
         }
 
         $this->deleteStaleFiles($expectedPaths);
@@ -254,7 +254,9 @@ TS;
 
         /** @var SplFileInfo $file */
         foreach ($iterator as $file) {
-            if ($file->isFile() && ! isset($expectedPaths[$file->getPathname()])) {
+            $path = $file->getRealPath() ?: $file->getPathname();
+
+            if ($file->isFile() && ! isset($expectedPaths[$path])) {
                 unlink($file->getPathname());
             }
         }
@@ -287,6 +289,19 @@ TS;
         if (!file_exists($path)) {
             mkdir($path, 0755, true);
         }
+    }
+
+    private function outputPath(string $relativePath): string
+    {
+        return rtrim($this->output, '/\\') . DIRECTORY_SEPARATOR . $relativePath;
+    }
+
+    private function relativePath(string ...$parts): string
+    {
+        return collect($parts)
+            ->flatMap(fn(string $part) => explode('/', str_replace('\\', '/', $part)))
+            ->filter(fn(string $part) => $part !== '')
+            ->implode('/');
     }
 
     private function kebabifyPath(string $path): string
