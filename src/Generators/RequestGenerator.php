@@ -273,12 +273,10 @@ class RequestGenerator extends AbstractGenerator
 
     private function rulesToStringArray(Collection $rules): Collection
     {
-        /** @var Collection $arrayRules */
-        /** @var Collection $rules */
         [$arrayRules, $rules] = $rules->partition(
             fn (array $value) => in_array('array', $value['types'], true) ||
                 str_contains($value['name'], '.'),
-        );
+        )->all();
 
         return $rules
             ->merge($this->mergeArrays($arrayRules))
@@ -289,8 +287,6 @@ class RequestGenerator extends AbstractGenerator
 
     private function mergeArrays(Collection $rules): Collection
     {
-        /** @var Collection $dotRules */
-        /** @var Collection $rules */
         [$dotRules, $rules] = $rules
             ->map(function (array $value, string $property) {
                 $value['name'] = $property;
@@ -302,7 +298,8 @@ class RequestGenerator extends AbstractGenerator
 
                 return $value;
             })
-            ->partition(fn (array $value, string $property) => str_contains($property, '.'));
+            ->partition(fn (array $value, string $property) => str_contains($property, '.'))
+            ->all();
 
         $rules = $rules->all();
 
@@ -366,11 +363,9 @@ class RequestGenerator extends AbstractGenerator
                 return $result;
             }
 
-            /** @var Collection $plainArray */
-            /** @var Collection $children */
             [$plainArray, $children] = collect($value['children'])->partition(
                 fn (array $value) => $value['name'] === '*',
-            );
+            )->all();
 
             if ($plainArray->isNotEmpty()) {
                 $types = implode(' | ', $plainArray->first()['types']) ?: 'any';
